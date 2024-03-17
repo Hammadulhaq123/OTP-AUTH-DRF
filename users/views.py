@@ -7,7 +7,7 @@ from .models import User
 import random
 from datetime import datetime, timedelta
 from django.contrib.auth.hashers import make_password
-from .utils import sendOtp
+from .utils import sendOtp, sendAccessKey
 from django.utils import timezone
 from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
@@ -20,7 +20,6 @@ from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from company.models import Company
 from employee.models import Employee
-from django.shortcuts import get_object_or_404
 
 # Create your views here.
 
@@ -318,7 +317,7 @@ class LoginView(generics.CreateAPIView):
                     valid_company_owner = authenticate(request=request, email=serializer.validated_data.get('email'), password=serializer.validated_data.get('password'))
                     if(valid_company_owner):
                         company_owner.update(access_key=access_key, access_key_expiry=access_key_expiry)
-                        sendOtp(access_key, email,name)
+                        sendAccessKey(access_key, email,name)
 
                         return Response(data={
                             "has_company": True,
