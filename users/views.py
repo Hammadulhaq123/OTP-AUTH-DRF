@@ -320,7 +320,10 @@ class LoginView(generics.CreateAPIView):
                         company_owner.update(access_key=access_key, access_key_expiry=access_key_expiry)
                         sendOtp(access_key, email,name)
 
-                        return Response(data={"message": f"Access Key generated and sent to {email}."}, status=status.HTTP_201_CREATED)
+                        return Response(data={
+                            "has_company": True,
+                            "message": f"Access Key generated and sent to {email}."
+                            }, status=status.HTTP_201_CREATED)
 
                     return Response(data={"error": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -337,7 +340,8 @@ class LoginView(generics.CreateAPIView):
 
                     data = {
                         'refresh': str(refresh),
-                        'access': str(refresh.access_token)
+                        'access': str(refresh.access_token),
+                        'has_company': False
                     }
                     return Response(data=data, status=status.HTTP_200_OK)
 
