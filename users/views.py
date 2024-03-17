@@ -18,7 +18,9 @@ from django_ratelimit.decorators import ratelimit
 from django.http import HttpResponse
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-
+from company.models import Company
+from employee.models import Employee
+from django.shortcuts import get_object_or_404
 
 # Create your views here.
 
@@ -262,12 +264,76 @@ class LoginView(generics.CreateAPIView):
 
         serializer = self.serializer_class(data=data)
 
+
+        # Normal Scenario:
+        # if serializer.is_valid():
+        #     user = User.objects.filter(email=serializer.validated_data.get('email'))
+        #     if(user.exists()):
+        #         user = authenticate(request=request, email=serializer.validated_data.get('email'), password=serializer.validated_data.get('password'))
+        #         if(user):
+        #             refresh = RefreshToken.for_user(user)
+
+        #             data = {
+        #                 'refresh': str(refresh),
+        #                 'access': str(refresh.access_token)
+        #             }
+        #             return Response(data=data, status=status.HTTP_200_OK)
+
+        #         return Response(data={"message": "Invalid Credentials provided."}, status=status.HTTP_200_OK)
+            
+        #     return Response(data={"message": "User doesn't exist."}, status=status.HTTP_200_OK)
+        
+        # return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+        # Our company oriented specific scenario:
         if serializer.is_valid():
-            user = User.objects.filter(email=serializer.validated_data.get('email'))
+            user = User.objects.filter(email=serializer.validated_data.get('email'), is_active=True)
             if(user.exists()):
-                user = authenticate(request=request, email=serializer.validated_data.get('email'), password=serializer.validated_data.get('password'))
-                if(user):
-                    refresh = RefreshToken.for_user(user)
+                employee = Employee.objects.filter(user=user.first())
+                company_owner = Company.objects.filter(owner=user.first())
+
+                # If user is an employee.
+                if(employee.exists()):
+                    valid_employee = authenticate(request=request, email=serializer.validated_data.get('email'), password=serializer.validated_data.get('password'))
+                    if(valid_employee):
+                        refresh = RefreshToken.for_user(valid_employee)
+
+                        data = {
+                            'refresh': str(refresh),
+                            'access': str(refresh.access_token)
+                        }
+                        return Response(data=data, status=status.HTTP_200_OK)
+
+                    return Response(data={"error": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+                # If user is a company_owner.
+                if(company_owner.exists()):
+                    # Access Key creation:
+                    access_key = f"{random.randint(100000000000000, 999999999999999)}"
+                    access_key_expiry = datetime.now() + timedelta(minutes=10)
+                    email = serializer.validated_data.get('email')
+                    name = company_owner.first().name
+                    
+                    valid_company_owner = authenticate(request=request, email=serializer.validated_data.get('email'), password=serializer.validated_data.get('password'))
+                    if(valid_company_owner):
+                        company_owner.update(access_key=access_key, access_key_expiry=access_key_expiry)
+                        sendOtp(access_key, email,name)
+
+                        return Response(data={"message": f"Access Key generated and sent to {email}."}, status=status.HTTP_201_CREATED)
+
+                    return Response(data={"error": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+
+                    
+
+                    
+                
+
+                # If user has not yet created a company and he is also not an employee.
+                valid_user = authenticate(request=request, email=serializer.validated_data.get('email'), password=serializer.validated_data.get('password'))
+                
+                if(valid_user):
+                    refresh = RefreshToken.for_user(valid_user)
 
                     data = {
                         'refresh': str(refresh),
@@ -275,12 +341,13 @@ class LoginView(generics.CreateAPIView):
                     }
                     return Response(data=data, status=status.HTTP_200_OK)
 
-                return Response(data={"message": "Invalid Credentials provided."}, status=status.HTTP_200_OK)
-            
-            return Response(data={"message": "User doesn't exist."}, status=status.HTTP_200_OK)
-        
-        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return Response(data={"error": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
+                
+            return Response(data={"message": "No active user exists with this email."}, status=status.HTTP_200_OK)
+
+        return Response(data=serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
 @method_decorator(ratelimit(key='user', rate='8/hour', method='POST', block=True), name='dispatch')
 class LogoutView(generics.CreateAPIView):
     serializer_class = serializers.LogoutSerializer

@@ -30,6 +30,8 @@ INSTALLED_APPS = [
 
 LOCAL_APPS = [
     'users.apps.UsersConfig',
+    'company.apps.CompanyConfig',
+    'employee.apps.EmployeeConfig'
 ]
 
 LIBRARIES = [
